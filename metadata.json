@@ -1,6 +1,10 @@
 {
-  "name": "SurfaceX - Attack Surface Snapshot Tool",
-  "description": "A professional EASM (External Attack Surface Management) tool for rapid, passive-first exposure analysis and risk scoring.",
+  "name": "SurfaceX — Passive Evidence Snapshot",
+  "description": "A bounded analyst snapshot for provenance-preserving public-source observations. No direct target traffic, scanning, risk scores, or generated findings.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "Passive certificate-name observation with provenance",
+    "Passive DNS TXT observation with explicit provider egress",
+    "Client-side target validation and source error reporting"
+  ]
 }

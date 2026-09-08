@@ -1,74 +1,47 @@
+export type CollectionMode = 'passive-only';
+export type ObservationStatus = 'success' | 'empty' | 'error';
+export type ObservationKind = 'certificate-name' | 'dns-txt';
 
-export enum RiskLevel {
-  LOW = 'Low',
-  MEDIUM = 'Medium',
-  HIGH = 'High',
-  CRITICAL = 'Critical'
+export interface CollectionSafetyContract {
+  mode: CollectionMode;
+  authorizationRequired: true;
+  directTargetConnections: false;
+  activeProbing: false;
+  credentialsAccepted: false;
+  retention: 'browser-memory-only';
+  egressDestinations: string[];
+  excludedTargets: string[];
 }
 
-export enum ConfidenceLevel {
-  HIGH = 'High',
-  MEDIUM = 'Medium',
-  LOW = 'Low'
+export interface ObservationRecord {
+  kind: ObservationKind;
+  value: string;
 }
 
-export interface ComplianceMapping {
-  framework: 'NIST CSF' | 'CIS' | 'ISO 27001';
-  control: string;
-  description: string;
+export interface SourceObservation {
+  sourceId: 'crt.sh' | 'cloudflare-doh';
+  sourceName: string;
+  sourceUrl: string;
+  classification: 'passive';
+  egressDisclosure: string;
+  queriedAt: string;
+  status: ObservationStatus;
+  records: ObservationRecord[];
+  note?: string;
 }
 
-export interface ReconFinding {
-  id: string;
-  module: string;
-  category: string;
-  title: string;
-  description: string;
-  severity: RiskLevel;
-  confidence: ConfidenceLevel;
-  evidence: string;
-  affectedAsset: string; // The specific subdomain or URL affected
-  impact: string;
-  recommendation: string;
-  threatActorContext?: string; // e.g. "Commonly abused by Ransomware groups"
-  compliance?: ComplianceMapping[];
+export interface CollectionError {
+  sourceId: SourceObservation['sourceId'];
+  occurredAt: string;
+  message: string;
 }
 
-export interface AttackPath {
-  id: string;
-  name: string;
-  steps: string[];
-  riskLevel: RiskLevel;
-  likelihood: 'High' | 'Medium' | 'Low';
-}
-
-export interface Subdomain {
-  name: string;
-  ip: string;
-  category: 'auth' | 'remote' | 'email' | 'admin' | 'dev' | 'cloud' | 'saas' | 'third-party';
-  ports: number[];
-  tags: string[];
-  provider?: string; // AWS, Azure, GCP, Cloudflare
-}
-
-export interface RiskDimensions {
-  initialAccess: number;
-  lateralMovement: number;
-  dataExposure: number;
-  brandReputation: number;
-}
-
-export interface ReconReport {
-  domain: string;
-  timestamp: string;
-  overallScore: number;
-  riskLevel: RiskLevel;
-  dimensions: RiskDimensions;
-  findings: ReconFinding[];
-  subdomains: Subdomain[];
-  attackPaths: AttackPath[];
-  dnsRecords: { type: string; value: string; }[];
-  techStack: string[];
-  securityHeaders: { name: string; present: boolean; value?: string; }[];
-  summary: string;
+/** A bounded inventory of public-source observations, not a vulnerability assessment. */
+export interface SnapshotReport {
+  target: string;
+  collectedAt: string;
+  contract: CollectionSafetyContract;
+  observations: SourceObservation[];
+  errors: CollectionError[];
+  limitations: string[];
 }
