@@ -31,14 +31,16 @@ describe('collectPassiveSnapshot', () => {
   it('keeps only in-scope provider records and records passive provenance', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(response([{ name_value: '*.api.example.com\nexample.com\nevil-example.com' }]))
-      .mockResolvedValueOnce(response({ Answer: [{ type: 16, data: '"v=spf1 -all"' }] }));
+      .mockResolvedValueOnce(response({ Answer: [{ type: 16, data: '"v=spf1 -all"' }] }))
+      .mockResolvedValueOnce(response({ Answer: [{ type: 1, data: '203.0.113.10' }] }));
 
     const snapshot = await collectPassiveSnapshot('example.com', fetcher);
 
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
       'https://crt.sh/?q=example.com&output=json',
       'https://cloudflare-dns.com/dns-query?name=example.com&type=TXT',
+      'https://cloudflare-dns.com/dns-query?name=api.example.com&type=A',
     ]);
     expect(snapshot.contract.directTargetConnections).toBe(false);
     expect(snapshot.contract.activeProbing).toBe(false);

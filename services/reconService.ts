@@ -3,8 +3,9 @@ import {
   CollectionSafetyContract,
   SnapshotReport,
   SourceObservation,
+  PassiveAssetObservation,
 } from '../types';
-import { isCandidateHostForDomain, validatePublicDomain } from './targetSafety';
+import { isCandidateHostForDomain, isNonPublicAddress, validatePublicDomain } from './targetSafety';
 
 export const COLLECTION_SAFETY_CONTRACT: CollectionSafetyContract = {
   mode: 'passive-only',
@@ -115,6 +116,36 @@ const collectTxtRecords = async (domain: string, fetcher: Fetcher): Promise<Sour
   }
 };
 
+const MAX_ASSET_NAMES = 25;
+
+const collectAssetObservation = async (hostname: string, fetcher: Fetcher): Promise<PassiveAssetObservation> => {
+  const sourceUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`;
+  const queriedAt = now();
+  try {
+    const response = await fetcher(sourceUrl, { headers: { accept: 'application/dns-json' } });
+    if (!response.ok) return { hostname, sourceUrl, queriedAt, status: 'error', addresses: [], note: responseError(response) };
+    const payload: unknown = await response.json();
+    const answers = typeof payload === 'object' && payload !== null && 'Answer' in payload && Array.isArray(payload.Answer)
+      ? payload.Answer
+      : [];
+    const addresses = [...new Set(answers.flatMap(answer =>
+      typeof answer === 'object' && answer !== null && 'type' in answer && 'data' in answer && answer.type === 1 && typeof answer.data === 'string' && !isNonPublicAddress(answer.data)
+        ? [answer.data.trim()]
+        : []
+    ))];
+    return {
+      hostname,
+      sourceUrl,
+      queriedAt,
+      status: addresses.length ? 'success' : 'empty',
+      addresses,
+      note: addresses.length ? 'Public-looking A answers were present in the provider response.' : 'The provider returned no public A answers.',
+    };
+  } catch {
+    return { hostname, sourceUrl, queriedAt, status: 'error', addresses: [], note: 'Request or response parsing failed.' };
+  }
+};
+
 /**
  * Collects only provider-hosted, public-source observations. No generated analysis,
  * direct target requests, port probes, authenticated access, or vulnerability checks occur.
@@ -130,19 +161,34 @@ export const collectPassiveSnapshot = async (
     collectCertificateNames(validation.domain, fetcher),
     collectTxtRecords(validation.domain, fetcher),
   ]);
-  const errors: CollectionError[] = observations
-    .filter((observation): observation is SourceObservation & { status: 'error'; note: string } => observation.status === 'error' && Boolean(observation.note))
-    .map(observation => ({
-      sourceId: observation.sourceId,
-      occurredAt: observation.queriedAt,
-      message: observation.note,
-    }));
+  const assetNames = [...new Set(observations[0].records
+    .map(record => record.value.replace(/^\*\./, ''))
+    .filter(name => name !== validation.domain && isCandidateHostForDomain(name, validation.domain)))]
+    .slice(0, MAX_ASSET_NAMES);
+  const assetObservations = await Promise.all(assetNames.map(name => collectAssetObservation(name, fetcher)));
+  const errors: CollectionError[] = [
+    ...observations
+      .filter((observation): observation is SourceObservation & { status: 'error'; note: string } => observation.status === 'error' && Boolean(observation.note))
+      .map(observation => ({
+        sourceId: observation.sourceId,
+        occurredAt: observation.queriedAt,
+        message: observation.note,
+      })),
+    ...assetObservations
+      .filter(asset => asset.status === 'error' && Boolean(asset.note))
+      .map(asset => ({
+        sourceId: 'cloudflare-doh' as const,
+        occurredAt: asset.queriedAt,
+        message: `${asset.hostname}: ${asset.note}`,
+      })),
+  ];
 
   return {
     target: validation.domain,
     collectedAt: now(),
     contract: COLLECTION_SAFETY_CONTRACT,
     observations,
+    assetObservations,
     errors,
     limitations: [
       'This is a point-in-time, provider-mediated observation set, not a complete asset inventory.',

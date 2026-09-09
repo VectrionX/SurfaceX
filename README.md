@@ -15,12 +15,13 @@ Client-side checks do not prove target ownership or public routability. Obtain a
 
 ## What it collects
 
-For a valid public-looking domain, SurfaceX makes two provider-hosted passive queries:
+For a valid public-looking domain, SurfaceX makes provider-hosted passive queries: one crt.sh certificate search, one Cloudflare TXT lookup, and up to 25 Cloudflare A lookups for names returned by crt.sh. The A lookups are bounded inventory observations, not reachability checks.
 
 | Provider | Query | Displayed observation |
 | --- | --- | --- |
 | crt.sh | Certificate Transparency search | In-scope certificate names returned by crt.sh |
 | Cloudflare DNS-over-HTTPS | DNS TXT lookup | TXT records returned by the provider |
+| Cloudflare DNS-over-HTTPS | DNS A lookup for up to 25 names returned by crt.sh | Bounded public-looking address observations |
 
 Every source card includes its query URL, collection time, passive classification, egress disclosure, returned records, and one of these states:
 

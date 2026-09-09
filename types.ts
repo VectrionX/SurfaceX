@@ -30,6 +30,15 @@ export interface SourceObservation {
   note?: string;
 }
 
+export interface PassiveAssetObservation {
+  hostname: string;
+  sourceUrl: string;
+  queriedAt: string;
+  status: ObservationStatus;
+  addresses: string[];
+  note?: string;
+}
+
 export interface CollectionError {
   sourceId: SourceObservation['sourceId'];
   occurredAt: string;
@@ -42,6 +51,8 @@ export interface SnapshotReport {
   collectedAt: string;
   contract: CollectionSafetyContract;
   observations: SourceObservation[];
+  /** DNS A answers for names already returned by the CT provider. */
+  assetObservations: PassiveAssetObservation[];
   errors: CollectionError[];
   limitations: string[];
 }
