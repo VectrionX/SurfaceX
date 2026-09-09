@@ -1,6 +1,7 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, Clock, ExternalLink, Globe, Info, Shield, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Download, ExternalLink, Globe, Info, Shield, XCircle } from 'lucide-react';
 import { SnapshotReport, SourceObservation } from '../types';
+import { serializeSnapshotReport } from '../services/reconService';
 
 interface DashboardProps {
   report: SnapshotReport;
@@ -16,7 +17,18 @@ const StatusIcon = ({ status }: { status: SourceObservation['status'] }) => stat
   ? <CheckCircle2 size={16} />
   : status === 'error' ? <XCircle size={16} /> : <Info size={16} />;
 
-const Dashboard: React.FC<DashboardProps> = ({ report }) => (
+const Dashboard: React.FC<DashboardProps> = ({ report }) => {
+  const exportReport = () => {
+    const blob = new Blob([serializeSnapshotReport(report)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `surfacex-${report.target}-snapshot.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
   <div className="max-w-5xl mx-auto space-y-6">
     <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-white/10 pb-6">
       <div>
@@ -24,7 +36,10 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => (
         <h1 className="text-3xl font-bold text-white mt-2">{report.target}</h1>
         <p className="text-sm text-slate-400 mt-2 flex gap-2 items-center"><Clock size={14} /> Collected {new Date(report.collectedAt).toLocaleString()}</p>
       </div>
-      <div className="text-xs text-slate-400">No risk score · No generated findings · No direct target connection</div>
+      <div className="flex flex-col items-start md:items-end gap-3">
+        <div className="text-xs text-slate-400">No risk score · No generated findings · No direct target connection</div>
+        <button onClick={exportReport} className="inline-flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-bold text-indigo-200 hover:bg-indigo-500/20"><Download size={14} /> Export transparent JSON</button>
+      </div>
     </header>
 
     <section className="bg-indigo-500/5 border border-indigo-500/20 rounded-3xl p-6">
@@ -86,6 +101,7 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => (
       <ul className="mt-3 list-disc pl-5 space-y-2 text-sm leading-relaxed text-slate-400">{report.limitations.map(limitation => <li key={limitation}>{limitation}</li>)}</ul>
     </section>
   </div>
-);
+  );
+};
 
 export default Dashboard;

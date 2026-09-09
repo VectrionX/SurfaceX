@@ -36,6 +36,7 @@ const now = () => new Date().toISOString();
 const MAX_TEXT_RECORD_LENGTH = 4096;
 
 const responseError = (response: Response) => `Source returned HTTP ${response.status}.`;
+const malformedResponse = 'Provider returned an unrecognized payload.';
 
 const collectCertificateNames = async (domain: string, fetcher: Fetcher): Promise<SourceObservation> => {
   const sourceUrl = `https://crt.sh/?q=${encodeURIComponent(domain)}&output=json`;
@@ -54,11 +55,10 @@ const collectCertificateNames = async (domain: string, fetcher: Fetcher): Promis
     if (!response.ok) return { ...base, status: 'error', records: [], note: responseError(response) };
 
     const payload: unknown = await response.json();
-    const names = Array.isArray(payload)
-      ? payload.flatMap(item => typeof item === 'object' && item !== null && 'name_value' in item && typeof item.name_value === 'string'
-        ? item.name_value.split(/\r?\n/)
-        : [])
-      : [];
+    if (!Array.isArray(payload)) return { ...base, status: 'error', records: [], note: malformedResponse };
+    const names = payload.flatMap(item => typeof item === 'object' && item !== null && 'name_value' in item && typeof item.name_value === 'string'
+      ? item.name_value.split(/\r?\n/)
+      : []);
     const records = [...new Set(names
       .map(name => name.trim().toLowerCase())
       .filter(name => isCandidateHostForDomain(name, domain)))]
@@ -95,7 +95,8 @@ const collectTxtRecords = async (domain: string, fetcher: Fetcher): Promise<Sour
     const payload: unknown = await response.json();
     const answers = typeof payload === 'object' && payload !== null && 'Answer' in payload && Array.isArray(payload.Answer)
       ? payload.Answer
-      : [];
+      : null;
+    if (answers === null) return { ...base, status: 'error', records: [], note: malformedResponse };
     const records = answers.flatMap(answer =>
       typeof answer === 'object' && answer !== null && 'type' in answer && 'data' in answer && answer.type === 16 && typeof answer.data === 'string'
         ? (() => {
@@ -127,7 +128,8 @@ const collectAssetObservation = async (hostname: string, fetcher: Fetcher): Prom
     const payload: unknown = await response.json();
     const answers = typeof payload === 'object' && payload !== null && 'Answer' in payload && Array.isArray(payload.Answer)
       ? payload.Answer
-      : [];
+      : null;
+    if (answers === null) return { hostname, sourceUrl, queriedAt, status: 'error', addresses: [], note: malformedResponse };
     const addresses = [...new Set(answers.flatMap(answer =>
       typeof answer === 'object' && answer !== null && 'type' in answer && 'data' in answer && answer.type === 1 && typeof answer.data === 'string' && !isNonPublicAddress(answer.data)
         ? [answer.data.trim()]
@@ -198,3 +200,6 @@ export const collectPassiveSnapshot = async (
     ],
   };
 };
+
+/** Export only the collected, provider-attributed report; no interpretation is added. */
+export const serializeSnapshotReport = (report: SnapshotReport): string => JSON.stringify(report, null, 2);
