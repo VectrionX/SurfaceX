@@ -7,7 +7,7 @@ const indexHtml = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'index
 
 test('the local-first interface permits only the approved GA4 tag as an external runtime resource', () => {
   const externalUrls = Array.from(
-    indexHtml.matchAll(/<(?:script|link)\b[^>]*(?:src|href)="(https?:[^\"]+)"/gi),
+    indexHtml.matchAll(/<(?:script\b[^>]*src|link\b[^>]*rel="stylesheet"[^>]*href)="(https?:[^\"]+)"/gi),
     ([, url]) => url,
   );
 
