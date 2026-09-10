@@ -1,6 +1,7 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, Clock, ExternalLink, Globe, Info, Shield, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Download, ExternalLink, Globe, Info, Shield, XCircle } from 'lucide-react';
 import { SnapshotReport, SourceObservation } from '../types';
+import { serializeSnapshotReport } from '../services/reconService';
 
 interface DashboardProps {
   report: SnapshotReport;
@@ -16,7 +17,18 @@ const StatusIcon = ({ status }: { status: SourceObservation['status'] }) => stat
   ? <CheckCircle2 size={16} />
   : status === 'error' ? <XCircle size={16} /> : <Info size={16} />;
 
-const Dashboard: React.FC<DashboardProps> = ({ report }) => (
+const Dashboard: React.FC<DashboardProps> = ({ report }) => {
+  const exportReport = () => {
+    const blob = new Blob([serializeSnapshotReport(report)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `surfacex-${report.target}-snapshot.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
   <div className="max-w-5xl mx-auto space-y-6">
     <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-white/10 pb-6">
       <div>
@@ -24,7 +36,10 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => (
         <h1 className="text-3xl font-bold text-white mt-2">{report.target}</h1>
         <p className="text-sm text-slate-400 mt-2 flex gap-2 items-center"><Clock size={14} /> Collected {new Date(report.collectedAt).toLocaleString()}</p>
       </div>
-      <div className="text-xs text-slate-400">No risk score · No generated findings · No direct target connection</div>
+      <div className="flex flex-col items-start md:items-end gap-3">
+        <div className="text-xs text-slate-400">No risk score · No generated findings · No direct target connection</div>
+        <button onClick={exportReport} className="inline-flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-bold text-indigo-200 hover:bg-indigo-500/20"><Download size={14} /> Export transparent JSON</button>
+      </div>
     </header>
 
     <section className="bg-indigo-500/5 border border-indigo-500/20 rounded-3xl p-6">
@@ -50,7 +65,20 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => (
     )}
 
     <section className="space-y-4">
-      <div><h2 className="text-xl font-bold text-white">Source observations</h2><p className="text-sm text-slate-400 mt-1">Values below are provider responses, not proof of ownership, reachability, security controls, or vulnerabilities.</p></div>
+      <div><h2 className="text-xl font-bold text-white">Resolved public names</h2><p className="text-sm text-slate-400 mt-1">A bounded inventory of A answers for names returned by crt.sh. These are provider responses, not proof that a host is reachable.</p></div>
+      {report.assetObservations.length === 0 ? <div className="bg-[#0F111A] border border-white/10 rounded-3xl p-6 text-sm text-slate-500">No in-scope certificate names were available for passive DNS resolution.</div> : report.assetObservations.map(asset => (
+        <article key={asset.hostname} className="bg-[#0F111A] border border-white/10 rounded-3xl p-6">
+          <div className="flex flex-col md:flex-row md:justify-between gap-3">
+            <div><h3 className="text-white font-bold">{asset.hostname}</h3><a href={asset.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex gap-1 items-center text-xs text-indigo-300 break-all">Provider query <ExternalLink size={12} /></a></div>
+            <span className={`h-fit border rounded-full px-3 py-1.5 text-xs font-bold uppercase ${statusStyle[asset.status]}`}>{asset.status}</span>
+          </div>
+          {asset.note && <p className="mt-3 text-sm text-slate-400">{asset.note}</p>}
+          {asset.addresses.length > 0 && <ul className="mt-3 flex flex-wrap gap-2">{asset.addresses.map(address => <li key={address} className="rounded-lg bg-[#0B0E14] border border-white/5 px-3 py-2 font-mono text-xs text-slate-300">{address}</li>)}</ul>}
+        </article>
+      ))}
+    </section>
+
+    <section className="space-y-4">
       {report.observations.map(observation => (
         <article key={observation.sourceId} className="bg-[#0F111A] border border-white/10 rounded-3xl p-6">
           <div className="flex flex-col md:flex-row md:justify-between gap-4">
@@ -73,6 +101,7 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => (
       <ul className="mt-3 list-disc pl-5 space-y-2 text-sm leading-relaxed text-slate-400">{report.limitations.map(limitation => <li key={limitation}>{limitation}</li>)}</ul>
     </section>
   </div>
-);
+  );
+};
 
 export default Dashboard;

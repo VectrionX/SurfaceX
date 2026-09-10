@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { collectPassiveSnapshot, TargetValidationError } from '../services/reconService';
+import { collectPassiveSnapshot, serializeSnapshotReport, TargetValidationError } from '../services/reconService';
 import { validatePublicDomain } from '../services/targetSafety';
 
 const response = (body: unknown, ok = true, status = 200) => ({
@@ -31,14 +31,16 @@ describe('collectPassiveSnapshot', () => {
   it('keeps only in-scope provider records and records passive provenance', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(response([{ name_value: '*.api.example.com\nexample.com\nevil-example.com' }]))
-      .mockResolvedValueOnce(response({ Answer: [{ type: 16, data: '"v=spf1 -all"' }] }));
+      .mockResolvedValueOnce(response({ Answer: [{ type: 16, data: '"v=spf1 -all"' }] }))
+      .mockResolvedValueOnce(response({ Answer: [{ type: 1, data: '203.0.113.10' }] }));
 
     const snapshot = await collectPassiveSnapshot('example.com', fetcher);
 
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
       'https://crt.sh/?q=example.com&output=json',
       'https://cloudflare-dns.com/dns-query?name=example.com&type=TXT',
+      'https://cloudflare-dns.com/dns-query?name=api.example.com&type=A',
     ]);
     expect(snapshot.contract.directTargetConnections).toBe(false);
     expect(snapshot.contract.activeProbing).toBe(false);
@@ -83,5 +85,30 @@ describe('collectPassiveSnapshot', () => {
       { kind: 'certificate-name', value: 'api.example.com' },
     ]);
     expect(snapshot.observations[1].records).toEqual([]);
+  });
+
+  it('marks malformed provider payloads as errors without turning them into findings', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response({ unexpected: 'shape' }))
+      .mockResolvedValueOnce(response({ Answer: 'not-an-array' }));
+
+    const snapshot = await collectPassiveSnapshot('example.com', fetcher);
+
+    expect(snapshot.observations.map(observation => observation.status)).toEqual(['error', 'error']);
+    expect(snapshot.observations.flatMap(observation => observation.records)).toEqual([]);
+    expect(snapshot.errors).toHaveLength(2);
+  });
+
+  it('exports the bounded report as transparent JSON without adding analysis', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response([{ name_value: 'api.example.com' }]))
+      .mockResolvedValueOnce(response({ Answer: [] }))
+      .mockResolvedValueOnce(response({ Answer: [{ type: 1, data: '203.0.113.10' }] }));
+    const snapshot = await collectPassiveSnapshot('example.com', fetcher);
+    const exported = JSON.parse(serializeSnapshotReport(snapshot)) as Record<string, unknown>;
+
+    expect(exported).toEqual(snapshot);
+    expect(exported).not.toHaveProperty('riskScore');
+    expect(exported).not.toHaveProperty('findings');
   });
 });
