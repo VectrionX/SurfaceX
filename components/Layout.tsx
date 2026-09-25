@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Shield, Github, Linkedin, Menu, X, Home, Book, FileText, Activity } from 'lucide-react';
 import { APP_NAME, APP_TAGLINE, LEGAL_DISCLAIMER } from '../constants';
 import { AppView } from '../App';
@@ -12,6 +12,13 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const firstNavRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (isMobileMenuOpen) firstNavRef.current?.focus();
+    else menuButtonRef.current?.focus();
+  }, [isMobileMenuOpen]);
 
   const navItems = [
     { id: 'home', label: 'Dashboard', icon: <Home size={20} /> },
@@ -20,7 +27,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
   ];
 
   return (
-    <div className="min-h-screen bg-[#05050A] text-slate-200 font-sans selection:bg-indigo-500/30 selection:text-indigo-200 flex overflow-hidden">
+    <div className="min-h-screen bg-[#05050A] text-slate-200 font-sans selection:bg-indigo-500/30 selection:text-indigo-200 flex">
       
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
@@ -31,15 +38,19 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
       )}
 
       {/* Sidebar Navigation */}
-      <aside className={`
+      <aside id="surface-nav" className={`
         fixed lg:relative inset-y-0 left-0 z-50 w-72 shrink-0 bg-[#0B0E14] border-r border-white/5 flex flex-col transition-transform duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Brand Header */}
         <div className="p-8 pb-4">
           <div 
-            className="flex items-center gap-3 cursor-pointer group mb-8"
+            className="flex items-center gap-3 cursor-pointer group mb-8 text-left"
             onClick={() => { setCurrentView('home'); setIsMobileMenuOpen(false); }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setCurrentView('home'); setIsMobileMenuOpen(false); } }}
+            aria-label="Go to SurfaceX snapshot"
           >
             <div className="relative">
               <div className="absolute inset-0 bg-indigo-500 blur-lg opacity-40 rounded-full group-hover:opacity-60 transition-opacity" />
@@ -48,7 +59,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
               </div>
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">{APP_NAME}</h1>
+              <p className="text-xl font-bold tracking-tight text-white">{APP_NAME}</p>
               <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{APP_TAGLINE}</p>
             </div>
           </div>
@@ -58,10 +69,12 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
 
         {/* Navigation Links */}
         <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
-          {navItems.map((item) => (
+          {navItems.map((item, index) => (
             <button
               key={item.id}
+              ref={index === 0 ? firstNavRef : undefined}
               onClick={() => { setCurrentView(item.id as AppView); setIsMobileMenuOpen(false); }}
+              aria-current={currentView === item.id ? 'page' : undefined}
               className={`
                 w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200 group
                 ${currentView === item.id 
@@ -119,7 +132,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col relative h-screen overflow-hidden bg-[#05050A]">
+      <main className="flex-1 flex flex-col relative min-h-screen bg-[#05050A]">
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center justify-between p-6 border-b border-white/5 bg-[#05050A]/80 backdrop-blur-md sticky top-0 z-30">
           <div className="flex items-center gap-3">
@@ -128,8 +141,13 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
              </div>
              <span className="font-bold text-white tracking-tight">{APP_NAME}</span>
           </div>
-          <button 
+          <button
+            ref={menuButtonRef}
+            type="button"
             onClick={() => setIsMobileMenuOpen(true)}
+            aria-label="Open navigation"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="surface-nav"
             className="p-2 text-slate-400 hover:text-white bg-white/5 rounded-lg"
           >
             <Menu size={24} />
@@ -137,7 +155,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
         </header>
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-10 scroll-smooth">
+        <div className="flex-1 p-6 lg:p-10 scroll-smooth">
           <div className="max-w-7xl mx-auto space-y-8 pb-12">
              {children}
           </div>

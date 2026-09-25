@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 export const APP_NAME = "SurfaceX";
-export const APP_TAGLINE = "Enterprise Attack Surface Intelligence";
+export const APP_TAGLINE = "Passive Domain Snapshots";
 
 export const MODULES = [
   { id: 'dns', name: 'DNS & Mail', icon: <Globe size={18} /> },
@@ -15,7 +15,7 @@ export const MODULES = [
   { id: 'cloud', name: 'Cloud & SaaS', icon: <Cloud size={18} /> },
   { id: 'ports', name: 'Services', icon: <Server size={18} /> },
   { id: 'web', name: 'Web Entry', icon: <Activity size={18} /> },
-  { id: 'paths', name: 'Attack Paths', icon: <Share2 size={18} /> },
+  { id: 'paths', name: 'DNS Relationships', icon: <Share2 size={18} /> },
   { id: 'tls', name: 'Encryption', icon: <Lock size={18} /> },
   { id: 'headers', name: 'Headers', icon: <Shield size={18} /> },
   { id: 'compliance', name: 'Compliance', icon: <ShieldCheck size={18} /> },
