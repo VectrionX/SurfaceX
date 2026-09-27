@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import DocsView from './components/DocsView';
 import RiskModelView from './components/RiskModelView';
-import { analyzeDomain } from './services/geminiService';
 import { performLocalRecon } from './services/reconService';
 import { ReconReport } from './types';
 import { Search, Loader2, Shield, Globe, Info, Zap, Settings, Cloud, Share2, ShieldCheck, Cpu, Database, AlertCircle, AlertTriangle, X, ChevronRight, Activity } from 'lucide-react';
@@ -17,10 +16,13 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<ReconReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [depth, setDepth] = useState('balanced');
-  const [mode, setMode] = useState<'local' | 'intelligence'>('intelligence');
-  const [apiKey, setApiKey] = useState('');
+
   const [showDisclaimer, setShowDisclaimer] = useState(true);
+  const disclaimerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showDisclaimer) disclaimerRef.current?.focus();
+  }, [showDisclaimer]);
 
   // Handle ESC key to go back home
   useEffect(() => {
@@ -48,8 +50,7 @@ const App: React.FC = () => {
 
     if (!domain) return;
 
-    let normalized = domain.toLowerCase().trim();
-    normalized = normalized.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const normalized = domain.trim().toLowerCase();
     
     // Clear previous state
     setError(null);
@@ -59,17 +60,7 @@ const App: React.FC = () => {
     setCurrentView('home'); 
     
     try {
-      let result: ReconReport;
-      if (mode === 'local') {
-        result = await performLocalRecon(normalized);
-      } else {
-        if (!apiKey) {
-          setError('Please provide a provider key for Provider-Assisted mode, or choose Local Snapshot.');
-          setLoading(false);
-          return;
-        }
-        result = await analyzeDomain(normalized, depth, apiKey);
-      }
+      const result: ReconReport = await performLocalRecon(normalized);
       setReport(result);
     } catch (err: any) {
       console.error("Scan failed:", err);
@@ -81,7 +72,7 @@ const App: React.FC = () => {
 
   const renderDisclaimerModal = () => (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-300" role="presentation">
-      <div role="dialog" aria-modal="true" aria-labelledby="consent-title" className="bg-[#0B0E14] border border-indigo-500/30 rounded-3xl p-6 md:p-10 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-[0_0_80px_-15px_rgba(99,102,241,0.2)] relative animate-in zoom-in-95 duration-500">
+      <div ref={disclaimerRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="consent-title" className="bg-[#0B0E14] border border-indigo-500/30 rounded-3xl p-6 md:p-10 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-[0_0_80px_-15px_rgba(99,102,241,0.2)] relative animate-in zoom-in-95 duration-500">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-violet-500"></div>
         <div className="w-12 h-12 md:w-16 md:h-16 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 border border-indigo-500/20">
           <Shield className="text-indigo-400 w-6 h-6 md:w-8 md:h-8" />
@@ -132,23 +123,7 @@ const App: React.FC = () => {
           </p>
         </div>
         
-        {/* Mode Toggle Pills */}
-        <div className="bg-[#0F111A] p-1.5 rounded-2xl border border-white/5 flex gap-1 shadow-2xl w-full lg:w-auto overflow-x-auto custom-scrollbar">
-          <button 
-            type="button"
-            onClick={() => { setMode('intelligence'); setError(null); }}
-            className={`flex-1 lg:flex-none flex justify-center items-center gap-2 px-4 md:px-5 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${mode === 'intelligence' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <Cpu size={14} /> PROVIDER-ASSISTED
-          </button>
-          <button 
-            type="button"
-            onClick={() => { setMode('local'); setError(null); }}
-            className={`flex-1 lg:flex-none flex justify-center items-center gap-2 px-4 md:px-5 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${mode === 'local' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <Database size={14} /> LOCAL SNAPSHOT
-          </button>
-        </div>
+        <div className="bg-[#0F111A] p-3 rounded-2xl border border-white/5 text-xs font-bold text-slate-300 shadow-2xl">PASSIVE SNAPSHOT · ALLOW-LISTED PROVIDERS</div>
       </div>
 
       {/* Main Search Input Card */}
@@ -157,13 +132,15 @@ const App: React.FC = () => {
         <div className="bg-[#0F111A] rounded-[20px] p-5 sm:p-8 md:p-10 relative z-10">
           <form onSubmit={handleSearch} className="space-y-6 md:space-y-8">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Target Asset Domain</label>
+              <label htmlFor="domain-input" className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Target Asset Domain</label>
               <div className="relative group/input">
                  <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
                    <Globe className="text-indigo-500 group-focus-within/input:text-indigo-400 transition-colors w-5 h-5 sm:w-6 sm:h-6" />
                  </div>
                  <input 
+                   id="domain-input"
                    type="text" 
+                   aria-describedby="egress-disclosure"
                    placeholder="e.g. cloud-enterprise.com"
                    className="w-full bg-[#0B0E14] border border-white/10 rounded-2xl py-4 sm:py-6 pl-10 sm:pl-14 pr-16 sm:pr-20 text-base sm:text-xl md:text-2xl text-white font-medium placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all shadow-inner"
                    value={domain}
@@ -182,44 +159,8 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* API Key Input for Intelligence Mode */}
-            {mode === 'intelligence' && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Provider key (optional for local snapshot)</label>
-                <div className="relative group/key">
-                   <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
-                     <Settings className="text-slate-600 group-focus-within/key:text-indigo-400 transition-colors w-4 h-4 sm:w-5 sm:h-5" />
-                   </div>
-                   <input
-                     type="password" 
-                     placeholder="Provider key for assisted correlation"
-                     className="w-full bg-[#0B0E14] border border-white/5 rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-6 text-sm text-white font-medium placeholder-slate-700 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all shadow-inner"
-                     value={apiKey}
-                     onChange={(e) => setApiKey(e.target.value)}
-                   />
-                </div>
-              </div>
-            )}
-
             {/* Filters Row */}
             <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4 sm:gap-6 pt-2">
-              {mode === 'intelligence' && (
-                <div className="flex items-center gap-3 bg-[#0B0E14] border border-white/5 px-4 py-2.5 rounded-xl">
-                  <Settings size={14} className="text-slate-500" />
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Scan Depth</span>
-                  <div className="h-4 w-px bg-white/10 mx-1" />
-                  <select 
-                    className="bg-transparent text-indigo-400 font-bold text-xs border-none outline-none cursor-pointer focus:ring-0"
-                    value={depth}
-                    onChange={(e) => setDepth(e.target.value)}
-                  >
-                    <option value="balanced">Balanced</option>
-                    <option value="deep">Deep Intelligence</option>
-                    <option value="rapid">Rapid Snapshot</option>
-                  </select>
-                </div>
-              )}
-              
               <div className="flex-1 hidden sm:block" />
 
               <div className="flex flex-wrap gap-4 sm:gap-6 text-xs font-medium text-slate-500">
@@ -256,7 +197,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Local Mode Warning */}
-      {mode === 'local' && (
+      {true && (
         <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-2xl flex items-start gap-3">
           <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={16} />
           <p className="text-xs text-amber-500/80 font-medium leading-relaxed">
@@ -288,7 +229,7 @@ const App: React.FC = () => {
         <div className="space-y-2">
            <h2 className="text-3xl font-bold text-white tracking-tight">Initializing Scan</h2>
            <p className="text-indigo-400 font-bold uppercase tracking-[0.2em] text-[10px] animate-pulse">
-             {mode === 'local' ? 'Targeting Local Resolvers' : 'Establishing Neural Uplink'}
+             Collecting passive provider metadata
            </p>
         </div>
         
@@ -308,7 +249,7 @@ const App: React.FC = () => {
 
   const renderError = () => (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-      <div className="max-w-md w-full bg-[#0F111A] border border-rose-500/20 rounded-3xl p-8 shadow-2xl shadow-rose-900/10 relative animate-in zoom-in-95 duration-200 overflow-hidden">
+      <div role="dialog" aria-modal="true" aria-labelledby="error-title" className="max-w-md w-full bg-[#0F111A] border border-rose-500/20 rounded-3xl p-8 shadow-2xl shadow-rose-900/10 relative animate-in zoom-in-95 duration-200 overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500 to-orange-500" />
         
         <button 
@@ -325,7 +266,7 @@ const App: React.FC = () => {
           
           <div className="space-y-2">
             <h4 className="text-rose-500 font-bold text-xs uppercase tracking-widest">System Alert</h4>
-            <h2 className="text-2xl font-bold text-white leading-tight">Operation Terminated</h2>
+            <h2 id="error-title" className="text-2xl font-bold text-white leading-tight">Operation Terminated</h2>
           </div>
           
           <p className="text-sm text-slate-400 leading-relaxed font-medium">
@@ -335,10 +276,10 @@ const App: React.FC = () => {
           <div className="w-full pt-4 space-y-3">
             <button 
               type="button"
-              onClick={() => { setMode('local'); setError(null); }}
+              onClick={() => setError(null)}
               className="w-full py-4 bg-white text-slate-950 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-slate-200 transition-all shadow-xl active:scale-95"
             >
-              Switch to Local Mode
+              Dismiss
             </button>
             <button 
               type="button"

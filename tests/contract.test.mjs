@@ -12,11 +12,21 @@ test('consent gates collection and discloses domain-scoped egress', () => {
   assert.match(app, /no monitoring or vulnerability assessment is performed/);
 });
 
-test('provider failures surface a user-facing recovery path', () => {
-  assert.match(app, /Provider-Assisted mode/);
+test('passive provider failures fail closed with a user-facing recovery path', () => {
+  assert.doesNotMatch(app, /apiKey|GoogleGenAI|gemini/);
   assert.match(app, /catch \(err: any\)/);
   assert.match(app, /setError\(err\.message \|\|/);
-  assert.match(app, /Switch to Local Mode/);
+  assert.match(app, /Dismiss/);
+});
+
+test('the snapshot has no target contact or fabricated evidence paths', async () => {
+  const recon = await readFile(new URL('../services/reconService.ts', import.meta.url), 'utf8');
+  assert.match(recon, /validatePublicDomain/);
+  assert.match(recon, /PASSIVE_PROVIDER_ORIGINS/);
+  assert.match(recon, /crt\.sh/);
+  assert.match(recon, /cloudflare-dns\.com/);
+  assert.doesNotMatch(recon, /probePort|RESTRICTED_PORTS|https:\/\/\$\{host\}/);
+  assert.doesNotMatch(recon, /Successful HTTP|mimic real|realistic findings/);
 });
 
 test('navigation has an accessible expanded state and avoids viewport clipping', () => {
