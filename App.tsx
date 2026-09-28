@@ -18,10 +18,30 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [showDisclaimer, setShowDisclaimer] = useState(true);
+  const [consentGranted, setConsentGranted] = useState(false);
   const disclaimerRef = useRef<HTMLDivElement>(null);
+  const disclaimerButtonRef = useRef<HTMLButtonElement>(null);
+  const domainInputRef = useRef<HTMLInputElement>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (showDisclaimer) disclaimerRef.current?.focus();
+    if (!showDisclaimer) {
+      (lastFocusedRef.current || domainInputRef.current)?.focus();
+      return;
+    }
+    lastFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    disclaimerButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setShowDisclaimer(false); return; }
+      if (event.key !== 'Tab' || !disclaimerRef.current) return;
+      const focusable = (Array.from(disclaimerRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) as HTMLElement[]).filter((el) => !el.hasAttribute('disabled'));
+      if (!focusable.length) return;
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showDisclaimer]);
 
   // Handle ESC key to go back home
@@ -49,6 +69,7 @@ const App: React.FC = () => {
     }
 
     if (!domain) return;
+    if (!consentGranted) { setShowDisclaimer(true); setError('Explicit consent is required before provider collection.'); return; }
 
     const normalized = domain.trim().toLowerCase();
     
@@ -60,7 +81,7 @@ const App: React.FC = () => {
     setCurrentView('home'); 
     
     try {
-      const result: ReconReport = await performLocalRecon(normalized);
+      const result: ReconReport = await performLocalRecon(normalized, fetch, consentGranted);
       setReport(result);
     } catch (err: any) {
       console.error("Scan failed:", err);
@@ -83,22 +104,25 @@ const App: React.FC = () => {
           <div className="bg-[#0F111A] border border-indigo-500/20 p-4 rounded-2xl flex items-start gap-4 flex-col sm:flex-row">
             <Info className="text-indigo-400 shrink-0 mt-0.5" size={20} />
             <div className="space-y-2">
-              <strong className="text-indigo-300 block text-sm">No Data Stored</strong>
+              <strong className="text-indigo-300 block text-sm">Provider processing disclosure</strong>
               <p className="text-slate-400 text-xs">
-                The entire application runs directly from your volatile memory. There are no databases attached to this tool.
+                SurfaceX keeps the current report only in this browser session. On collection, Cloudflare DNS-over-HTTPS and SSLMate/Cert Spotter process the submitted public domain and may process requester network metadata under their own privacy terms.
               </p>
+              <p className="text-slate-400 text-xs"><a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noreferrer">Cloudflare privacy</a> · <a href="https://sslmate.com/privacy/" target="_blank" rel="noreferrer">SSLMate privacy</a></p>
               <p className="text-slate-400 text-xs">
-                The entered domain and provider responses remain in volatile session memory only. No monitoring, exploitation, or vulnerability assessment is performed.
+                No target is contacted. No monitoring or vulnerability assessment is performed; exploitation and active scanning are also prohibited.
               </p>
             </div>
           </div>
         </div>
         <button 
-          onClick={() => setShowDisclaimer(false)}
+          ref={disclaimerButtonRef}
+          onClick={() => { setConsentGranted(true); setShowDisclaimer(false); }}
           className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm tracking-wide py-4 rounded-xl transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 active:scale-[0.98]"
         >
           I Understand & Continue
         </button>
+        <button type="button" onClick={() => setShowDisclaimer(false)} className="mt-3 w-full text-slate-300 underline">Decline collection</button>
       </div>
     </div>
   );
@@ -119,7 +143,7 @@ const App: React.FC = () => {
             Passive Domain <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-400"><br className="hidden sm:block lg:hidden" />Snapshot</span>
           </h1>
           <p className="text-base md:text-lg text-slate-400 max-w-xl font-medium">
-            Collect a bounded, domain-scoped snapshot from publicly observable DNS, certificate, and HTTP metadata.
+            Collect a bounded, domain-scoped snapshot from publicly observable DNS and certificate metadata.
           </p>
         </div>
         
@@ -138,6 +162,7 @@ const App: React.FC = () => {
                    <Globe className="text-indigo-500 group-focus-within/input:text-indigo-400 transition-colors w-5 h-5 sm:w-6 sm:h-6" />
                  </div>
                  <input 
+                   ref={domainInputRef}
                    id="domain-input"
                    type="text" 
                    aria-describedby="egress-disclosure"
@@ -149,7 +174,7 @@ const App: React.FC = () => {
                  <div className="absolute inset-y-0 right-2 sm:right-3 flex items-center">
                     <button 
                       type="submit"
-                      disabled={loading || !domain.trim() || showDisclaimer}
+                      disabled={loading || !domain.trim() || !consentGranted}
                       aria-label="Collect passive domain snapshot"
                       className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 sm:p-3 rounded-xl shadow-lg shadow-indigo-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center"
                     >
@@ -171,7 +196,7 @@ const App: React.FC = () => {
             </div>
           </form>
           <p className="mt-4 text-[11px] leading-relaxed text-slate-500" id="egress-disclosure">
-            Collect sends this domain to the selected local or provider-backed snapshot path. Only publicly observable, domain-scoped metadata is requested; no monitoring or vulnerability assessment is performed.
+            Collect sends this validated public domain to Cloudflare DNS-over-HTTPS and SSLMate/Cert Spotter. Those providers may process the domain plus requester IP/user-agent; no target request, monitoring, or vulnerability assessment is performed.
           </p>
         </div>
       </div>

@@ -35,9 +35,9 @@ const DocsView: React.FC<DocsViewProps> = ({ onBack }) => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 relative">
           <div className="hidden md:block absolute top-1/2 left-0 right-0 h-px bg-slate-800 -z-10" />
           {[
-            { step: '01', title: 'Target Normalization', icon: <Search />, desc: 'Cleaning protocols and handling root-domain resolution.' },
-            { step: '02', title: 'Passive Discovery', icon: <Globe />, desc: 'Querying CT logs and DNS records (MX, TXT, SPF).' },
-            { step: '03', title: 'Intelligence Synthesis', icon: <Cpu />, desc: 'AI-driven correlation of assets into risk findings.' },
+            { step: '01', title: 'Target Validation', icon: <Search />, desc: 'Accepting only a public registrable-domain hostname.' },
+            { step: '02', title: 'Passive Discovery', icon: <Globe />, desc: 'Querying Cert Spotter and Cloudflare DNS-over-HTTPS.' },
+            { step: '03', title: 'Bounded Reporting', icon: <Cpu />, desc: 'Rendering only observations returned by the passive providers.' },
             { step: '04', title: 'Remediation', icon: <Shield />, desc: 'Mapping exposures to compliance frameworks (NIST/CIS).' }
           ].map((item, idx) => (
             <div key={idx} className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4">
@@ -65,7 +65,7 @@ const DocsView: React.FC<DocsViewProps> = ({ onBack }) => {
             <ul className="space-y-3 text-sm text-slate-400">
               <li className="flex gap-2">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-1.5 shrink-0" />
-                Querying public Certificate Transparency (CT) logs via crt.sh.
+                Querying public Certificate Transparency (CT) data via SSLMate/Cert Spotter.
               </li>
               <li className="flex gap-2">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-1.5 shrink-0" />
@@ -73,7 +73,7 @@ const DocsView: React.FC<DocsViewProps> = ({ onBack }) => {
               </li>
               <li className="flex gap-2">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mt-1.5 shrink-0" />
-                Browser-native HTTP/S handshake (Mode: no-cors) for port verification.
+                Provider responses are restricted to HTTPS requests to the documented allowlist.
               </li>
             </ul>
           </div>
@@ -113,20 +113,20 @@ const DocsView: React.FC<DocsViewProps> = ({ onBack }) => {
             { 
               title: 'Email Security Analysis', 
               icon: <Globe />, 
-              tech: 'SPF, DMARC, MX Records',
-              detail: 'Checks for missing or misconfigured mail records that could lead to high-deliverability phishing or spoofing attacks.' 
+              tech: 'Cloudflare DoH TXT',
+              detail: 'Reports only whether a v=spf1 value was present in the passive TXT response; it does not test delivery or mail infrastructure.'
             },
             { 
               title: 'Cloud Leak Detection', 
               icon: <Cloud />, 
               tech: 'Heuristic Pattern Matching',
-              detail: 'Analyzes subdomain names (e.g., storage, s3, bucket) to predict and verify exposure of cloud resources.' 
+              detail: 'No cloud-resource probing or heuristic exposure claims are produced by the passive snapshot.'
             },
             { 
               title: 'Encryption (TLS/SSL)', 
               icon: <Lock />, 
-              tech: 'Handshake Metadata',
-              detail: 'Evaluates the strength of cryptographic controls, certificate validity, and issuer trust levels.' 
+              tech: 'Not collected',
+              detail: 'SurfaceX does not contact target hosts and therefore does not assess TLS handshakes or security headers.'
             }
           ].map((mod, i) => (
             <div key={i} className="group p-8 bg-slate-900 border border-slate-800 rounded-3xl hover:border-indigo-500 transition-all">

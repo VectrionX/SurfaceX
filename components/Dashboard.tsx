@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ReconReport, RiskLevel, ConfidenceLevel, AttackPath, ReconFinding } from '../types';
 import { RISK_COLORS } from '../constants';
 import { 
@@ -23,6 +23,30 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => {
   const [exporting, setExporting] = useState(false);
   const [findingScreenshots, setFindingScreenshots] = useState<Record<string, string>>({});
   const reportRef = useRef<HTMLDivElement>(null);
+  const remediationCloseRef = useRef<HTMLButtonElement>(null);
+  const remediationTriggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!selectedRemediation) return;
+    remediationTriggerRef.current = document.activeElement as HTMLElement;
+    remediationCloseRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setSelectedRemediation(null); return; }
+      if (event.key !== 'Tab') return;
+      const dialog = document.getElementById('remediation-dialog');
+      if (!dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) as HTMLElement[];
+      if (!focusable.length) return;
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      remediationTriggerRef.current?.focus();
+    };
+  }, [selectedRemediation]);
 
   if (!report) return null;
 
@@ -168,8 +192,8 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => {
                <Cpu size={18} className="text-white" />
              </div>
              <div>
-               <h3 className="text-white font-bold text-lg">AI Executive Insight</h3>
-               <p className="text-xs text-indigo-300">Generated Analysis</p>
+               <h3 className="text-white font-bold text-lg">Passive Snapshot Summary</h3>
+               <p className="text-xs text-indigo-300">Provider observations</p>
              </div>
           </div>
           
@@ -463,9 +487,9 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => {
 
       {/* Modal - Remediation Blueprint */}
       {selectedRemediation && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden print:hidden">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden print:hidden" role="presentation">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in" onClick={() => setSelectedRemediation(null)} />
-          <div className="relative w-full max-w-3xl bg-[#0F111A] border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 overflow-hidden">
+          <div id="remediation-dialog" role="dialog" aria-modal="true" aria-labelledby="remediation-title" className="relative w-full max-w-3xl bg-[#0F111A] border border-white/10 rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 overflow-hidden">
             
             {/* Modal Header */}
             <div className="p-6 border-b border-white/5 flex items-center justify-between bg-[#0B0E14]">
@@ -478,14 +502,14 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => {
                    <p className="text-[10px] text-slate-500 font-mono">{selectedRemediation.id}</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedRemediation(null)} className="p-2 bg-[#0F111A] text-slate-400 rounded-xl hover:text-white hover:bg-white/5 transition-colors"><X size={20} /></button>
+              <button ref={remediationCloseRef} aria-label="Close remediation details" onClick={() => setSelectedRemediation(null)} className="p-2 bg-[#0F111A] text-slate-400 rounded-xl hover:text-white hover:bg-white/5 transition-colors"><X size={20} /></button>
             </div>
             
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
               <div>
                 <span className={`text-[10px] font-bold px-3 py-1 rounded-lg border mb-3 inline-block ${RISK_COLORS[selectedRemediation.severity]}`}>{selectedRemediation.severity} Severity</span>
-                <h2 className="text-3xl font-bold text-white leading-tight mb-3">{selectedRemediation.title}</h2>
+                <h2 id="remediation-title" className="text-3xl font-bold text-white leading-tight mb-3">{selectedRemediation.title}</h2>
                 <div className="flex items-center gap-2 text-xs text-slate-400 font-mono bg-[#0B0E14] p-2 rounded-lg inline-flex border border-white/5">
                   <Globe size={14} className="text-indigo-500" /> {selectedRemediation.affectedAsset}
                 </div>
@@ -496,7 +520,7 @@ const Dashboard: React.FC<DashboardProps> = ({ report }) => {
                    <Sword size={64} className="text-rose-500" />
                 </div>
                 <h4 className="text-xs font-black text-rose-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                   Exploitation Scenario
+                   Defensive Context
                 </h4>
                 <p className="text-sm text-rose-100/80 leading-relaxed italic relative z-10">
                   "{selectedRemediation.threatActorContext}"

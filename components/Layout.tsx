@@ -18,6 +18,11 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
   useEffect(() => {
     if (isMobileMenuOpen) firstNavRef.current?.focus();
     else menuButtonRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isMobileMenuOpen) { event.preventDefault(); setIsMobileMenuOpen(false); }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isMobileMenuOpen]);
 
   const navItems = [
@@ -42,6 +47,9 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
         fixed lg:relative inset-y-0 left-0 z-50 w-72 shrink-0 bg-[#0B0E14] border-r border-white/5 flex flex-col transition-transform duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
+        <button type="button" aria-label="Close navigation" onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden absolute top-5 right-5 p-2 text-slate-400 hover:text-white bg-white/5 rounded-lg">
+          <X size={20} />
+        </button>
         {/* Brand Header */}
         <div className="p-8 pb-4">
           <div 

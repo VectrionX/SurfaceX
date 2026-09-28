@@ -7,9 +7,11 @@ const layout = await readFile(new URL('../components/Layout.tsx', import.meta.ur
 
 test('consent gates collection and discloses domain-scoped egress', () => {
   assert.match(app, /showDisclaimer/);
-  assert.match(app, /disabled=\{loading \|\| !domain\.trim\(\) \|\| showDisclaimer\}/);
-  assert.match(app, /Collect sends this domain to the selected local or provider-backed snapshot path/);
-  assert.match(app, /no monitoring or vulnerability assessment is performed/);
+  assert.match(app, /const \[consentGranted, setConsentGranted\] = useState\(false\)/);
+  assert.match(app, /disabled=\{loading \|\| !domain\.trim\(\) \|\| !consentGranted\}/);
+  assert.match(app, /setConsentGranted\(true\)/);
+  assert.match(app, /Collect sends this validated public domain to Cloudflare DNS-over-HTTPS and SSLMate\/Cert Spotter/);
+  assert.match(app, /no monitoring or vulnerability assessment is performed/i);
 });
 
 test('passive provider failures fail closed with a user-facing recovery path', () => {
@@ -23,7 +25,7 @@ test('the snapshot has no target contact or fabricated evidence paths', async ()
   const recon = await readFile(new URL('../services/reconService.ts', import.meta.url), 'utf8');
   assert.match(recon, /validatePublicDomain/);
   assert.match(recon, /PASSIVE_PROVIDER_ORIGINS/);
-  assert.match(recon, /crt\.sh/);
+  assert.match(recon, /api\.certspotter\.com/);
   assert.match(recon, /cloudflare-dns\.com/);
   assert.doesNotMatch(recon, /probePort|RESTRICTED_PORTS|https:\/\/\$\{host\}/);
   assert.doesNotMatch(recon, /Successful HTTP|mimic real|realistic findings/);
