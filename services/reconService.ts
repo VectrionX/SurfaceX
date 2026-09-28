@@ -1,5 +1,5 @@
 import { getDomain } from 'tldts';
-import type { ReconReport, Subdomain } from '../types.ts';
+import { RiskLevel, type ReconReport, type Subdomain } from '../types.ts';
 
 const MAX_BODY_BYTES = 1_000_000;
 const TIMEOUT_MS = 8_000;
@@ -67,6 +67,6 @@ export const performLocalRecon = async (input: string, fetchImpl: typeof fetch =
     const dns = providerUrl('https://cloudflare-dns.com', '/dns-query', { name: domain, type: 'TXT' });
     const [ctPayload, dnsPayload] = await Promise.all([boundedJson(cert, fetchImpl, controller), boundedJson(dns, fetchImpl, controller)]);
     const subdomains = certificates(ctPayload, domain); const dnsRecords = dnsTxt(dnsPayload, domain);
-    return { domain, timestamp: new Date().toISOString(), overallScore: 0, riskLevel: 'Low', dimensions: { initialAccess: 0, lateralMovement: 0, dataExposure: 0, brandReputation: 0 }, findings: [], subdomains, attackPaths: [], dnsRecords, techStack: ['Certificate Transparency metadata', 'DNS TXT metadata'], securityHeaders: [], summary: `Passive provider observations only: ${subdomains.length} CT name(s) and ${dnsRecords.length} DNS TXT record(s). No target was contacted and no risk score or finding was inferred.` };
+    return { domain, timestamp: new Date().toISOString(), overallScore: 0, riskLevel: RiskLevel.LOW, dimensions: { initialAccess: 0, lateralMovement: 0, dataExposure: 0, brandReputation: 0 }, findings: [], subdomains, attackPaths: [], dnsRecords, techStack: ['Certificate Transparency metadata', 'DNS TXT metadata'], securityHeaders: [], summary: `Passive provider observations only: ${subdomains.length} CT name(s) and ${dnsRecords.length} DNS TXT record(s). No target was contacted and no risk score or finding was inferred.` };
   } catch { controller.abort(); throw new Error('Passive providers are unavailable or returned invalid data; no snapshot was produced.'); } finally { clearTimeout(timeout); }
 };
