@@ -26,7 +26,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!showDisclaimer) {
-      (lastFocusedRef.current || domainInputRef.current)?.focus();
+      (domainInputRef.current || lastFocusedRef.current)?.focus();
       return;
     }
     lastFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -156,7 +156,7 @@ const App: React.FC = () => {
         <div className="bg-[#0F111A] rounded-[20px] p-5 sm:p-8 md:p-10 relative z-10">
           <form onSubmit={handleSearch} className="space-y-6 md:space-y-8">
             <div className="space-y-2">
-              <label htmlFor="domain-input" className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Target Asset Domain</label>
+              <label htmlFor="domain-input" className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Target Asset Domain</label>
               <div className="relative group/input">
                  <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
                    <Globe className="text-indigo-500 group-focus-within/input:text-indigo-400 transition-colors w-5 h-5 sm:w-6 sm:h-6" />
@@ -188,14 +188,14 @@ const App: React.FC = () => {
             <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4 sm:gap-6 pt-2">
               <div className="flex-1 hidden sm:block" />
 
-              <div className="flex flex-wrap gap-4 sm:gap-6 text-xs font-medium text-slate-500">
+              <div className="flex flex-wrap gap-4 sm:gap-6 text-xs font-medium text-slate-400">
                 <span className="flex items-center gap-1.5 sm:gap-2"><Cloud size={14} className="text-indigo-500/50" /> <span className="hidden sm:inline">Cloud Visibility</span><span className="sm:hidden">Cloud</span></span>
                 <span className="flex items-center gap-1.5 sm:gap-2"><Share2 size={14} className="text-indigo-500/50" /> <span className="hidden sm:inline">DNS relationships</span><span className="sm:hidden">DNS</span></span>
                 <span className="flex items-center gap-1.5 sm:gap-2"><ShieldCheck size={14} className="text-indigo-500/50" /> Compliance</span>
               </div>
             </div>
           </form>
-          <p className="mt-4 text-[11px] leading-relaxed text-slate-500" id="egress-disclosure">
+          <p className="mt-4 text-[11px] leading-relaxed text-slate-400" id="egress-disclosure">
             Collect sends this validated public domain to Cloudflare DNS-over-HTTPS and SSLMate/Cert Spotter. Those providers may process the domain plus requester IP/user-agent; no target request, monitoring, or vulnerability assessment is performed.
           </p>
         </div>
@@ -262,7 +262,7 @@ const App: React.FC = () => {
           <div className="h-1.5 w-full bg-[#0B0E14] rounded-full overflow-hidden border border-white/5">
             <div className="h-full bg-gradient-to-r from-indigo-600 to-violet-500 animate-[loading_2s_ease-in-out_infinite]" />
           </div>
-          <div className="flex justify-between text-[10px] font-mono font-medium text-slate-500 uppercase">
+          <div className="flex justify-between text-[10px] font-mono font-medium text-slate-400 uppercase">
              <span>Discovery</span>
              <span>Correlation</span>
              <span>Synthesis</span>
@@ -279,7 +279,7 @@ const App: React.FC = () => {
         
         <button 
           onClick={() => setError(null)}
-          className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white bg-white/5 rounded-xl transition-colors"
+          className="absolute top-6 right-6 p-2 text-slate-400 hover:text-white bg-white/5 rounded-xl transition-colors"
         >
           <X size={20} />
         </button>
@@ -346,7 +346,7 @@ const App: React.FC = () => {
           >
             <Search size={18} />
             <span className="text-xs font-bold uppercase tracking-widest hidden sm:block">New Scan</span>
-            <kbd className="text-[10px] bg-white/5 px-2 py-0.5 rounded border border-white/10 font-bold text-slate-500 group-hover:text-slate-300 hidden md:block">Esc</kbd>
+            <kbd className="text-[10px] bg-white/5 px-2 py-0.5 rounded border border-white/10 font-bold text-slate-400 group-hover:text-slate-300 hidden md:block">Esc</kbd>
           </button>
         </div>
       )}

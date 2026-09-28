@@ -14,10 +14,12 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const firstNavRef = useRef<HTMLButtonElement>(null);
+  const wasMobileMenuOpenRef = useRef(false);
 
   useEffect(() => {
     if (isMobileMenuOpen) firstNavRef.current?.focus();
-    else menuButtonRef.current?.focus();
+    else if (wasMobileMenuOpenRef.current) menuButtonRef.current?.focus();
+    wasMobileMenuOpenRef.current = isMobileMenuOpen;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isMobileMenuOpen) { event.preventDefault(); setIsMobileMenuOpen(false); }
     };
@@ -68,7 +70,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
             </div>
             <div>
               <p className="text-xl font-bold tracking-tight text-white">{APP_NAME}</p>
-              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">{APP_TAGLINE}</p>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{APP_TAGLINE}</p>
             </div>
           </div>
 
@@ -87,10 +89,10 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
                 w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200 group
                 ${currentView === item.id 
                   ? 'bg-gradient-to-r from-indigo-600/10 to-violet-600/10 text-white shadow-[0_0_20px_rgba(99,102,241,0.15)] border border-indigo-500/20' 
-                  : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-white/5'}
               `}
             >
-              <span className={`${currentView === item.id ? 'text-indigo-400' : 'text-slate-600 group-hover:text-slate-400'}`}>
+              <span className={`${currentView === item.id ? 'text-indigo-400' : 'text-slate-400 group-hover:text-slate-400'}`}>
                 {item.icon}
               </span>
               <span className="text-sm font-semibold tracking-wide">{item.label}</span>
@@ -101,13 +103,13 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
           ))}
 
           <div className="pt-8 mt-8 border-t border-white/5 px-4">
-            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-4">Resources</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Resources</p>
             <div className="flex flex-col gap-2">
               <a 
                 href="https://github.com/VectrionX" 
                 target="_blank" 
                 rel="noreferrer"
-                className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-500 hover:text-white hover:bg-white/5 transition-all text-sm font-medium"
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-white hover:bg-white/5 transition-all text-sm font-medium"
               >
                 <Github size={18} /> GitHub
               </a>
@@ -115,7 +117,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
                 href="https://www.linkedin.com/in/mag99/" 
                 target="_blank" 
                 rel="noreferrer"
-                className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-500 hover:text-white hover:bg-white/5 transition-all text-sm font-medium"
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:text-white hover:bg-white/5 transition-all text-sm font-medium"
               >
                 <Linkedin size={18} /> LinkedIn
               </a>
@@ -172,12 +174,12 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setCurrentView }
           <footer className="max-w-7xl mx-auto mt-20 py-8 border-t border-white/5">
              <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
                <div>
-                 <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                    &copy; {new Date().getFullYear()} {APP_NAME}. <span className="text-indigo-500">Defensive Use Only.</span>
                  </p>
                </div>
                <div className="flex gap-4">
-                 <p className="text-[10px] text-slate-600 max-w-md italic">
+                 <p className="text-[10px] text-slate-400 max-w-md italic">
                    {LEGAL_DISCLAIMER.substring(0, 100)}...
                  </p>
                </div>

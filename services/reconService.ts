@@ -1,9 +1,10 @@
+import { getDomain } from 'tldts';
 import type { ReconReport, Subdomain } from '../types.ts';
 
 const MAX_BODY_BYTES = 1_000_000;
 const TIMEOUT_MS = 8_000;
 export const PASSIVE_PROVIDER_ORIGINS = Object.freeze(['https://cloudflare-dns.com', 'https://api.certspotter.com']);
-const PUBLIC_SUFFIXES = new Set(['com','org','net','edu','gov','io','ai','app','dev','info','biz','cloud','tech','uk','de','fr','ca','us','au','nz','jp','br','cn','sg','za','tr','mx','ar','pl','be','at','eu','co.uk','org.uk','ac.uk','gov.uk','com.au','net.au','org.au','co.jp','co.nz','com.br','com.cn','com.sg','com.tr','com.mx','com.ar']);
+const SPECIAL_USE_SUFFIXES = new Set(['localhost', 'local', 'internal', 'invalid', 'test', 'example']);
 
 export class InvalidDomainError extends Error { constructor() { super('Enter a supported ASCII public registrable domain, such as example.com.'); this.name = 'InvalidDomainError'; } }
 
@@ -14,9 +15,9 @@ export const validatePublicDomain = (value: string): string => {
   if (!candidate || candidate.length > 253 || candidate.endsWith('.') || /[\\/@?#\s:[\]]/.test(candidate) || !/^[a-z0-9.-]+$/.test(candidate) || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(candidate)) throw new InvalidDomainError();
   const labels = candidate.split('.');
   if (labels.some((label) => !label || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) throw new InvalidDomainError();
-  const suffix = labels.slice(-2).join('.');
-  const publicSuffix = PUBLIC_SUFFIXES.has(suffix) ? suffix : labels.at(-1)!;
-  if (!PUBLIC_SUFFIXES.has(publicSuffix) || candidate === publicSuffix || labels.length !== publicSuffix.split('.').length + 1) throw new InvalidDomainError();
+  const registrableDomain = getDomain(candidate, { allowPrivateDomains: false });
+  const suffix = candidate.split('.').at(-1)!;
+  if (!registrableDomain || registrableDomain !== candidate || SPECIAL_USE_SUFFIXES.has(suffix)) throw new InvalidDomainError();
   return candidate;
 };
 

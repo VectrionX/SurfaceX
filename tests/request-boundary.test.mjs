@@ -9,6 +9,7 @@ const invalid = ['https://acme.com','acme.com/path','acme.com?x=1','user:pass@ac
 test('invalid names reject with zero egress and accepted input is exact registrable domain', async () => {
   for (const input of invalid) assert.throws(() => validatePublicDomain(input), input);
   assert.equal(validatePublicDomain('Acme.COM'), 'acme.com');
+  assert.equal(validatePublicDomain('Example.CO.ZA'), 'example.co.za');
   let calls = 0; await assert.rejects(() => performLocalRecon('127.0.0.1', async () => { calls++; }, true), /registrable/); assert.equal(calls, 0);
 });
 
