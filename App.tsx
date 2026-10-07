@@ -14,7 +14,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<SnapshotReport | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showContract, setShowContract] = useState(true);
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
@@ -67,7 +67,7 @@ const App: React.FC = () => {
         </label>
         <button
           disabled={!authorized}
-          onClick={() => setShowContract(false)}
+          onClick={() => setShowDisclaimer(false)}
           className="mt-7 w-full bg-indigo-600 disabled:bg-slate-700 disabled:text-slate-400 hover:bg-indigo-500 text-white font-bold text-sm py-4 rounded-xl transition-all"
         >
           Continue to passive snapshot
@@ -128,7 +128,7 @@ const App: React.FC = () => {
 
   return (
     <Layout currentView={currentView} setCurrentView={setCurrentView}>
-      {showContract && renderContract()}
+      {showDisclaimer && renderContract()}
       {currentView === 'docs' ? <DocsView onBack={() => setCurrentView('home')} /> : report ? <Dashboard report={report} /> : renderSearch()}
       {error && (
         <div className="fixed bottom-6 right-6 max-w-md bg-rose-950 border border-rose-500/30 text-rose-100 p-4 rounded-2xl shadow-xl flex gap-3">
