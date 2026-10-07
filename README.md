@@ -1,53 +1,58 @@
-# SurfaceX
+# SurfaceX — passive evidence snapshot
 
-SurfaceX is a browser-based, passive public-domain snapshot. It is not a scanner, monitor, vulnerability assessment, or risk-scoring service.
+SurfaceX is a **bounded analyst snapshot** for selected public-source observations about one public-looking domain. It is not enterprise EASM, an asset inventory, a vulnerability scanner, or an authorization system.
 
-## What it does
+## Safety contract
 
-For one explicitly authorized, ASCII public registrable domain, SurfaceX requests:
+Before a collection starts, the browser requires the operator to confirm authorization and displays the contract:
 
-- Cloudflare DNS-over-HTTPS JSON for a bounded set of DNS record types.
-- SSLMate Cert Spotter certificate-transparency issuance metadata, including disclosed DNS names.
+- **Passive-only:** no direct target requests, port probes, crawling, service checks, authentication, vulnerability tests, or generated analysis.
+- **Declared egress:** the submitted domain is sent to `https://crt.sh` and `https://cloudflare-dns.com`. Those providers, not the target, receive the request.
+- **Client-side target guardrails:** IP literals, localhost, reserved suffixes, private/internal-looking names, and values containing paths, ports, credentials, queries, or fragments are rejected before egress.
+- **No credentials or persistence:** SurfaceX accepts no provider key and holds the resulting report in browser memory only.
 
-It displays only validated observations returned by those providers. It does not contact the submitted domain or any discovered hostname.
+Client-side checks do not prove target ownership or public routability. Obtain appropriate authorization before use.
 
-## Privacy and consent
+## What it collects
 
-No provider request occurs until the user explicitly accepts the in-session consent prompt and submits a valid domain. The submitted domain, requester IP address, and user-agent may be processed by Cloudflare and SSLMate/Cert Spotter under their own terms and privacy policies. Consent is held only in the current browser session.
+For a valid public-looking domain, SurfaceX makes provider-hosted passive queries: one crt.sh certificate search, one Cloudflare TXT lookup, and up to 25 Cloudflare A lookups for names returned by crt.sh. The A lookups are bounded inventory observations, not reachability checks.
 
-Provider references:
+| Provider | Query | Displayed observation |
+| --- | --- | --- |
+| crt.sh | Certificate Transparency search | In-scope certificate names returned by crt.sh |
+| Cloudflare DNS-over-HTTPS | DNS TXT lookup | TXT records returned by the provider |
+| Cloudflare DNS-over-HTTPS | DNS A lookup for up to 25 names returned by crt.sh | Bounded public-looking address observations |
 
-- Cloudflare DNS-over-HTTPS: https://developers.cloudflare.com/1.1.1.1/encryption/dns-over-https/make-api-requests/dns-json/
-- Cert Spotter API: https://sslmate.com/help/reference/ct_search_api_v1
+Every source card includes its query URL, collection time, passive classification, egress disclosure, returned records, and one of these states:
 
-## Limits and safety boundaries
+- `success` — provider returned one or more in-scope records.
+- `empty` — provider responded, but returned no displayed records.
+- `error` — request, response, or parsing failed; the error is shown as an error, not converted to a finding.
 
-- Inputs must be canonical ASCII ICANN registrable domains (for example, `example.com`); URLs, paths, credentials, IP literals, localhost/internal names, and subdomains are rejected.
-- The application only issues HTTPS requests to `cloudflare-dns.com/dns-query` and `api.certspotter.com/v1/issuances`.
-- It performs no port probes, HTTP requests to the target, authentication, exploitation, active scanning, or monitoring.
-- Provider errors, redirects, unexpected content types, oversized bodies, and invalid schemas fail closed. SurfaceX does not create fallback findings or infer risk from missing or malformed provider data.
-- Certificate Transparency and DNS data are incomplete and time-dependent. Their absence is not evidence of security posture.
+## Interpretation limits
 
-Use SurfaceX only for domains you are authorized to assess.
+A displayed record is **provider-reported observation**, not target-derived proof. Certificate names and DNS TXT records do not establish ownership, reachability, security posture, controls, or vulnerabilities. Empty responses and source errors do not prove that a record or control is absent. Provider content and availability can vary by time and network.
 
-## Local development
+## Run locally
 
 ```bash
-npm ci
+npm install
 npm run dev
 ```
 
-Validation:
+## Verify
 
 ```bash
 npm test
+npm run typecheck
 npm run build
+npm audit --omit=dev --audit-level=high
 ```
 
-## Repository hygiene
+## Development boundaries
 
-Do not commit credentials, environment files, provider keys, sensitive findings, or customer data. The application has no client-side provider-secret configuration.
+Do not add active probing, target connections, scanning, AI-generated reports, synthetic evidence, risk scores, attack paths, or enterprise EASM claims without a separate reviewed design and explicit safety model.
 
-## Status
+## License
 
-This repository is under active development. A successful build or local snapshot is not an assurance, certification, or authorization to assess a third party.
+MIT. See [LICENSE](LICENSE).

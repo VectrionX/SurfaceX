@@ -1,72 +1,205 @@
-import { getDomain } from 'tldts';
-import { RiskLevel, type ReconReport, type Subdomain } from '../types.ts';
+import {
+  CollectionError,
+  CollectionSafetyContract,
+  SnapshotReport,
+  SourceObservation,
+  PassiveAssetObservation,
+} from '../types';
+import { isCandidateHostForDomain, isNonPublicAddress, validatePublicDomain } from './targetSafety';
 
-const MAX_BODY_BYTES = 1_000_000;
-const TIMEOUT_MS = 8_000;
-export const PASSIVE_PROVIDER_ORIGINS = Object.freeze(['https://cloudflare-dns.com', 'https://api.certspotter.com']);
-const SPECIAL_USE_SUFFIXES = new Set(['localhost', 'local', 'internal', 'invalid', 'test', 'example']);
-
-export class InvalidDomainError extends Error { constructor() { super('Enter a supported ASCII public registrable domain, such as example.com.'); this.name = 'InvalidDomainError'; } }
-
-/** Pure validation. This ASCII-only conservative parser never resolves or contacts input. */
-export const validatePublicDomain = (value: string): string => {
-  if (typeof value !== 'string') throw new InvalidDomainError();
-  const candidate = value.trim().toLowerCase();
-  if (!candidate || candidate.length > 253 || candidate.endsWith('.') || /[\\/@?#\s:[\]]/.test(candidate) || !/^[a-z0-9.-]+$/.test(candidate) || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(candidate)) throw new InvalidDomainError();
-  const labels = candidate.split('.');
-  if (labels.some((label) => !label || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) throw new InvalidDomainError();
-  const registrableDomain = getDomain(candidate, { allowPrivateDomains: false });
-  const suffix = candidate.split('.').at(-1)!;
-  if (!registrableDomain || registrableDomain !== candidate || SPECIAL_USE_SUFFIXES.has(suffix)) throw new InvalidDomainError();
-  return candidate;
+export const COLLECTION_SAFETY_CONTRACT: CollectionSafetyContract = {
+  mode: 'passive-only',
+  authorizationRequired: true,
+  directTargetConnections: false,
+  activeProbing: false,
+  credentialsAccepted: false,
+  retention: 'browser-memory-only',
+  egressDestinations: ['https://crt.sh', 'https://cloudflare-dns.com'],
+  excludedTargets: [
+    'IP address literals',
+    'localhost and reserved names',
+    'private and internal-looking domains',
+    'paths, ports, credentials, queries, and fragments',
+  ],
 };
 
-const providerUrl = (origin: string, path: string, params: Record<string, string>): string => {
-  if (!PASSIVE_PROVIDER_ORIGINS.includes(origin)) throw new Error('Provider is outside the allowlist.');
-  const url = new URL(path, origin); for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value); return url.toString();
-};
-
-const boundedJson = async (url: string, fetchImpl: typeof fetch, controller: AbortController): Promise<unknown> => {
-  const request = new URL(url); const expected = request.hostname === 'cloudflare-dns.com' ? 'application/dns-json' : 'application/json';
-  const response = await fetchImpl(url, { method: 'GET', headers: { accept: expected }, cache: 'no-store', redirect: 'error', signal: controller.signal });
-  const result = response.url ? new URL(response.url) : request;
-  if (!response.ok || result.origin !== request.origin || result.pathname !== request.pathname || response.headers.get('content-type')?.split(';')[0] !== expected) throw new Error('Provider response rejected.');
-  const declared = Number(response.headers.get('content-length') ?? '0');
-  if (!Number.isFinite(declared) || declared > MAX_BODY_BYTES) throw new Error('Provider response rejected.');
-  const text = await response.text();
-  if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) throw new Error('Provider response rejected.');
-  try { return JSON.parse(text); } catch { throw new Error('Provider response rejected.'); }
-};
-
-const certificates = (payload: unknown, domain: string): Subdomain[] => {
-  if (!Array.isArray(payload)) throw new Error('CT schema rejected.');
-  const names = new Set<string>();
-  for (const row of payload.slice(0, 100)) {
-    if (!row || typeof row !== 'object' || !Array.isArray((row as { dns_names?: unknown }).dns_names)) throw new Error('CT schema rejected.');
-    for (const raw of (row as { dns_names: unknown[] }).dns_names) {
-      if (typeof raw !== 'string') throw new Error('CT schema rejected.');
-      const name = raw.toLowerCase().replace(/^\*\./, '');
-      if (/^[a-z0-9.-]+$/.test(name) && (name === domain || name.endsWith(`.${domain}`))) names.add(name);
-    }
+export class TargetValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TargetValidationError';
   }
-  return [...names].map((name) => ({ name, ip: 'Not collected', category: 'third-party', ports: [], tags: ['Certificate Transparency observation'], provider: 'Cert Spotter' }));
-};
+}
 
-const dnsTxt = (payload: unknown, domain: string): { type: string; value: string }[] => {
-  if (!payload || typeof payload !== 'object') throw new Error('DNS schema rejected.');
-  const data = payload as { Status?: unknown; Question?: unknown; Answer?: unknown };
-  if (data.Status !== 0 || !Array.isArray(data.Question) || data.Question.length !== 1 || (data.Question[0] as { name?: unknown; type?: unknown }).name !== `${domain}.` || (data.Question[0] as { type?: unknown }).type !== 16 || !Array.isArray(data.Answer)) throw new Error('DNS schema rejected.');
-  return data.Answer.filter((r): r is { type: number; data: string } => !!r && typeof r === 'object' && (r as { type?: unknown }).type === 16 && typeof (r as { data?: unknown }).data === 'string').map((r) => ({ type: 'TXT', value: r.data.replace(/^"|"$/g, '').trim() }));
-};
+type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
-export const performLocalRecon = async (input: string, fetchImpl: typeof fetch = fetch, consentGranted = false): Promise<ReconReport> => {
-  if (!consentGranted) throw new Error('Consent is required before contacting passive providers.');
-  const domain = validatePublicDomain(input); const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+const now = () => new Date().toISOString();
+const MAX_TEXT_RECORD_LENGTH = 4096;
+
+const responseError = (response: Response) => `Source returned HTTP ${response.status}.`;
+const malformedResponse = 'Provider returned an unrecognized payload.';
+
+const collectCertificateNames = async (domain: string, fetcher: Fetcher): Promise<SourceObservation> => {
+  const sourceUrl = `https://crt.sh/?q=${encodeURIComponent(domain)}&output=json`;
+  const queriedAt = now();
+  const base = {
+    sourceId: 'crt.sh' as const,
+    sourceName: 'crt.sh Certificate Transparency search',
+    sourceUrl,
+    classification: 'passive' as const,
+    egressDisclosure: 'The target domain is sent to crt.sh. SurfaceX does not connect to the target.',
+    queriedAt,
+  };
+
   try {
-    const cert = providerUrl('https://api.certspotter.com', '/v1/issuances', { domain, include_subdomains: 'true', match_wildcards: 'true', expand: 'dns_names' });
-    const dns = providerUrl('https://cloudflare-dns.com', '/dns-query', { name: domain, type: 'TXT' });
-    const [ctPayload, dnsPayload] = await Promise.all([boundedJson(cert, fetchImpl, controller), boundedJson(dns, fetchImpl, controller)]);
-    const subdomains = certificates(ctPayload, domain); const dnsRecords = dnsTxt(dnsPayload, domain);
-    return { domain, timestamp: new Date().toISOString(), overallScore: 0, riskLevel: RiskLevel.LOW, dimensions: { initialAccess: 0, lateralMovement: 0, dataExposure: 0, brandReputation: 0 }, findings: [], subdomains, attackPaths: [], dnsRecords, techStack: ['Certificate Transparency metadata', 'DNS TXT metadata'], securityHeaders: [], summary: `Passive provider observations only: ${subdomains.length} CT name(s) and ${dnsRecords.length} DNS TXT record(s). No target was contacted and no risk score or finding was inferred.` };
-  } catch { controller.abort(); throw new Error('Passive providers are unavailable or returned invalid data; no snapshot was produced.'); } finally { clearTimeout(timeout); }
+    const response = await fetcher(sourceUrl, { headers: { accept: 'application/json' } });
+    if (!response.ok) return { ...base, status: 'error', records: [], note: responseError(response) };
+
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload)) return { ...base, status: 'error', records: [], note: malformedResponse };
+    const names = payload.flatMap(item => typeof item === 'object' && item !== null && 'name_value' in item && typeof item.name_value === 'string'
+      ? item.name_value.split(/\r?\n/)
+      : []);
+    const records = [...new Set(names
+      .map(name => name.trim().toLowerCase())
+      .filter(name => isCandidateHostForDomain(name, domain)))]
+      .sort()
+      .map(value => ({ kind: 'certificate-name' as const, value }));
+
+    return {
+      ...base,
+      status: records.length ? 'success' : 'empty',
+      records,
+      note: records.length ? 'Names were present in the provider response.' : 'The provider returned no in-scope certificate names.',
+    };
+  } catch {
+    return { ...base, status: 'error', records: [], note: 'Request or response parsing failed.' };
+  }
 };
+
+const collectTxtRecords = async (domain: string, fetcher: Fetcher): Promise<SourceObservation> => {
+  const sourceUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=TXT`;
+  const queriedAt = now();
+  const base = {
+    sourceId: 'cloudflare-doh' as const,
+    sourceName: 'Cloudflare DNS-over-HTTPS',
+    sourceUrl,
+    classification: 'passive' as const,
+    egressDisclosure: 'The target domain is sent to Cloudflare DNS-over-HTTPS. SurfaceX does not connect to the target.',
+    queriedAt,
+  };
+
+  try {
+    const response = await fetcher(sourceUrl, { headers: { accept: 'application/dns-json' } });
+    if (!response.ok) return { ...base, status: 'error', records: [], note: responseError(response) };
+
+    const payload: unknown = await response.json();
+    const answers = typeof payload === 'object' && payload !== null && 'Answer' in payload && Array.isArray(payload.Answer)
+      ? payload.Answer
+      : null;
+    if (answers === null) return { ...base, status: 'error', records: [], note: malformedResponse };
+    const records = answers.flatMap(answer =>
+      typeof answer === 'object' && answer !== null && 'type' in answer && 'data' in answer && answer.type === 16 && typeof answer.data === 'string'
+        ? (() => {
+          const value = answer.data.replace(/^"|"$/g, '');
+          return value.length <= MAX_TEXT_RECORD_LENGTH ? [{ kind: 'dns-txt' as const, value }] : [];
+        })()
+        : []
+    );
+
+    return {
+      ...base,
+      status: records.length ? 'success' : 'empty',
+      records,
+      note: records.length ? 'TXT records were present in the provider response.' : 'The provider returned no TXT records.',
+    };
+  } catch {
+    return { ...base, status: 'error', records: [], note: 'Request or response parsing failed.' };
+  }
+};
+
+const MAX_ASSET_NAMES = 25;
+
+const collectAssetObservation = async (hostname: string, fetcher: Fetcher): Promise<PassiveAssetObservation> => {
+  const sourceUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`;
+  const queriedAt = now();
+  try {
+    const response = await fetcher(sourceUrl, { headers: { accept: 'application/dns-json' } });
+    if (!response.ok) return { hostname, sourceUrl, queriedAt, status: 'error', addresses: [], note: responseError(response) };
+    const payload: unknown = await response.json();
+    const answers = typeof payload === 'object' && payload !== null && 'Answer' in payload && Array.isArray(payload.Answer)
+      ? payload.Answer
+      : null;
+    if (answers === null) return { hostname, sourceUrl, queriedAt, status: 'error', addresses: [], note: malformedResponse };
+    const addresses = [...new Set(answers.flatMap(answer =>
+      typeof answer === 'object' && answer !== null && 'type' in answer && 'data' in answer && answer.type === 1 && typeof answer.data === 'string' && !isNonPublicAddress(answer.data)
+        ? [answer.data.trim()]
+        : []
+    ))];
+    return {
+      hostname,
+      sourceUrl,
+      queriedAt,
+      status: addresses.length ? 'success' : 'empty',
+      addresses,
+      note: addresses.length ? 'Public-looking A answers were present in the provider response.' : 'The provider returned no public A answers.',
+    };
+  } catch {
+    return { hostname, sourceUrl, queriedAt, status: 'error', addresses: [], note: 'Request or response parsing failed.' };
+  }
+};
+
+/**
+ * Collects only provider-hosted, public-source observations. No generated analysis,
+ * direct target requests, port probes, authenticated access, or vulnerability checks occur.
+ */
+export const collectPassiveSnapshot = async (
+  input: string,
+  fetcher: Fetcher = fetch,
+): Promise<SnapshotReport> => {
+  const validation = validatePublicDomain(input);
+  if (validation.ok === false) throw new TargetValidationError(validation.reason);
+
+  const observations = await Promise.all([
+    collectCertificateNames(validation.domain, fetcher),
+    collectTxtRecords(validation.domain, fetcher),
+  ]);
+  const assetNames = [...new Set(observations[0].records
+    .map(record => record.value.replace(/^\*\./, ''))
+    .filter(name => name !== validation.domain && isCandidateHostForDomain(name, validation.domain)))]
+    .slice(0, MAX_ASSET_NAMES);
+  const assetObservations = await Promise.all(assetNames.map(name => collectAssetObservation(name, fetcher)));
+  const errors: CollectionError[] = [
+    ...observations
+      .filter((observation): observation is SourceObservation & { status: 'error'; note: string } => observation.status === 'error' && Boolean(observation.note))
+      .map(observation => ({
+        sourceId: observation.sourceId,
+        occurredAt: observation.queriedAt,
+        message: observation.note,
+      })),
+    ...assetObservations
+      .filter(asset => asset.status === 'error' && Boolean(asset.note))
+      .map(asset => ({
+        sourceId: 'cloudflare-doh' as const,
+        occurredAt: asset.queriedAt,
+        message: `${asset.hostname}: ${asset.note}`,
+      })),
+  ];
+
+  return {
+    target: validation.domain,
+    collectedAt: now(),
+    contract: COLLECTION_SAFETY_CONTRACT,
+    observations,
+    assetObservations,
+    errors,
+    limitations: [
+      'This is a point-in-time, provider-mediated observation set, not a complete asset inventory.',
+      'A missing record or source error is not evidence that a record, control, or exposure is absent.',
+      'Certificate names and DNS TXT records do not establish ownership, reachability, security posture, or vulnerability.',
+      'No direct connection to the target is made; provider availability and response contents can vary.',
+    ],
+  };
+};
+
+/** Export only the collected, provider-attributed report; no interpretation is added. */
+export const serializeSnapshotReport = (report: SnapshotReport): string => JSON.stringify(report, null, 2);
